@@ -1,0 +1,11 @@
+# Keep Unix line endings so shell scripts and container files still run
+# after a checkout on Windows.
+* text=auto eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+*.png binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.docx binary

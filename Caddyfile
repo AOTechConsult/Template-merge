@@ -1,0 +1,15 @@
+{
+	# Ports 80/443 belong to the security response tool on this server.
+	auto_https disable_redirects
+	http_port 8081
+}
+
+{$SITE_ADDRESS}:{$HTTPS_PORT} {
+	# Internal certificate from Caddy's local CA. For a public DNS name, delete this line.
+	tls internal
+	encode gzip
+	request_body {
+		max_size 1300MB
+	}
+	reverse_proxy app:8080
+}

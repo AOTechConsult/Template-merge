@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - tmerge-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["${HTTPS_PORT:-8443}:${HTTPS_PORT:-8443}"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      HTTPS_PORT: ${HTTPS_PORT:-8443}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  tmerge-data:
+  # When the security response tool runs on the same server, the installer points this at its
+  # Caddy volume so both apps share one certificate authority (one root certificate to trust).
+  caddy-data:
+    name: ${CADDY_DATA_VOLUME:-tmerge-caddy-data}
