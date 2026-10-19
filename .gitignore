@@ -1,33 +1,7 @@
-# Dependencies and build output
-node_modules/
-dist/
-*.tsbuildinfo
-
-# Local settings and secrets (never commit these)
 .env
-.env.*
-!.env.example
-
-# Runtime data: case database, backups, exported certificate
 data/
 backups/
+node_modules/
+dist/
 *.sqlite
-*.sqlite-wal
-*.sqlite-shm
-caddy-root.crt
-
-# Editor and OS files
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
-
-# Logs
-*.log
-npm-debug.log*
-
-# Python
-__pycache__/
-*.pyc
-.venv/
+*.crt
