@@ -13,7 +13,7 @@
 #
 # Prompts can be pre-answered with environment variables for unattended runs:
 #   TM_HOST, TM_PORT, TM_ORG, ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ENTRA_ALLOWED_GROUP_ID,
-#   ANTHROPIC_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT,
+#   GLEAN_BASE_URL, GLEAN_API_TOKEN, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT,
 #   CONFLUENCE_BASE_URL, CONFLUENCE_EMAIL, CONFLUENCE_API_TOKEN, CONFLUENCE_PAT
 #   (answer "none" to skip an optional item)
 
@@ -270,7 +270,7 @@ do_install() {
     To go live:
       1. Create an Entra app registration for sign-in (README, "Entra setup") with the redirect URI
            $base/auth/callback
-      2. Have an Anthropic API key and/or an Azure OpenAI deployment ready (optional).
+      2. Have a Glean base URL and API token and/or an Azure OpenAI deployment ready (optional).
       3. Have a Confluence service account or token ready (optional).
       4. Run:  sudo bash $INSTALL_DIR/install.sh --live
 MSG
@@ -292,15 +292,11 @@ do_live() {
   [[ $ENTRA_ALLOWED_GROUP_ID == none ]] && ENTRA_ALLOWED_GROUP_ID=""
 
   step "AI fallback (optional; type 'none' to skip each)"
-  if [[ -z ${ANTHROPIC_API_KEY:-} ]]; then
-    local claude_default=no
-    [[ -n $(get_env ANTHROPIC_API_KEY) ]] && claude_default=keep
-    ask USE_CLAUDE "Use Claude through the Anthropic API? (yes / no / keep)" "$claude_default" 'yes|no|keep'
-    case $USE_CLAUDE in
-      yes) ask_secret ANTHROPIC_API_KEY "Anthropic API key" ;;
-      keep) ANTHROPIC_API_KEY=keep ;;
-      *) ANTHROPIC_API_KEY=none ;;
-    esac
+  local gl_default
+  gl_default=$(get_env GLEAN_BASE_URL)
+  ask GLEAN_BASE_URL "Glean base URL, e.g. https://company-be.glean.com" "${gl_default:-none}" 'none|https://[A-Za-z0-9.-]+/?'
+  if [[ $GLEAN_BASE_URL != none ]]; then
+    ask_secret GLEAN_API_TOKEN "Glean API token (chat scope)"
   fi
   local az_default
   az_default=$(get_env AZURE_OPENAI_ENDPOINT)
@@ -334,9 +330,11 @@ do_live() {
   elif [[ $resp == *AADSTS7000215* || $resp == *AADSTS7000222* ]]; then warn "Microsoft rejected the client secret. Paste the secret's Value, not its ID."; problems=1
   elif [[ $resp == *AADSTS700016* ]]; then warn "Microsoft does not know that client ID in this tenant."; problems=1
   else warn "Could not verify the Entra client secret; sign-in will show the real result."; fi
-  if [[ $ANTHROPIC_API_KEY != none && $ANTHROPIC_API_KEY != keep ]]; then
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://api.anthropic.com/v1/models -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" || true)
-    if [[ $code == 200 ]]; then info "Anthropic API key accepted."; else warn "Anthropic did not accept the key (HTTP $code)."; problems=1; fi
+  if [[ $GLEAN_BASE_URL != none ]]; then
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X POST "${GLEAN_BASE_URL%/}/rest/api/v1/chat" \
+      -H "Authorization: Bearer $GLEAN_API_TOKEN" -H "content-type: application/json" \
+      -d '{"messages":[{"author":"USER","messageType":"CONTENT","fragments":[{"text":"ping"}]}],"stream":false}' || true)
+    if [[ $code == 200 ]]; then info "Glean answered."; else warn "Glean did not answer as expected (HTTP $code). Check the base URL and token."; problems=1; fi
   fi
   if [[ $AZURE_OPENAI_ENDPOINT != none ]]; then
     code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "${AZURE_OPENAI_ENDPOINT%/}/openai/deployments/$AZURE_OPENAI_DEPLOYMENT/chat/completions?api-version=2024-10-21" \
@@ -363,8 +361,11 @@ do_live() {
   set_env ENTRA_CLIENT_ID "${ENTRA_CLIENT_ID,,}"
   set_env ENTRA_CLIENT_SECRET "$(quote "$ENTRA_CLIENT_SECRET")"
   set_env ENTRA_ALLOWED_GROUP_ID "${ENTRA_ALLOWED_GROUP_ID,,}"
-  if [[ $ANTHROPIC_API_KEY == none ]]; then set_env ANTHROPIC_API_KEY ""
-  elif [[ $ANTHROPIC_API_KEY != keep ]]; then set_env ANTHROPIC_API_KEY "$(quote "$ANTHROPIC_API_KEY")"; fi
+  if [[ $GLEAN_BASE_URL == none ]]; then
+    set_env GLEAN_BASE_URL ""; set_env GLEAN_API_TOKEN ""
+  else
+    set_env GLEAN_BASE_URL "${GLEAN_BASE_URL%/}"; set_env GLEAN_API_TOKEN "$(quote "$GLEAN_API_TOKEN")"
+  fi
   if [[ $AZURE_OPENAI_ENDPOINT == none ]]; then
     set_env AZURE_OPENAI_ENDPOINT ""; set_env AZURE_OPENAI_API_KEY ""; set_env AZURE_OPENAI_DEPLOYMENT ""
   else
@@ -379,8 +380,8 @@ do_live() {
     set_env CONFLUENCE_API_TOKEN "$( [[ -n ${CONFLUENCE_API_TOKEN:-} ]] && quote "$CONFLUENCE_API_TOKEN")"
     set_env CONFLUENCE_PAT "$( [[ -n ${CONFLUENCE_PAT:-} ]] && quote "$CONFLUENCE_PAT")"
   fi
-  # Prefer Claude when both are set up; otherwise whichever exists.
-  if [[ -n $(get_env ANTHROPIC_API_KEY) ]]; then set_env DEFAULT_AI_PROVIDER claude
+  # Prefer Glean when both are set up; otherwise whichever exists.
+  if [[ -n $(get_env GLEAN_BASE_URL) ]]; then set_env DEFAULT_AI_PROVIDER glean
   elif [[ -n $(get_env AZURE_OPENAI_ENDPOINT) ]]; then set_env DEFAULT_AI_PROVIDER azure; fi
   set_env DEMO_MODE false
   info "Previous settings kept in $ENV_FILE.bak"

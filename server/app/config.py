@@ -29,13 +29,15 @@ class Confluence:
 
 
 @dataclass
-class Claude:
-    api_key: str = ""
-    model: str = "claude-sonnet-5-5"
+class Glean:
+    base_url: str = ""  # https://<company>-be.glean.com
+    api_token: str = ""  # Glean Client API token with chat scope
+    auth_type: str = ""  # optional X-Glean-Auth-Type, e.g. OAUTH
+    act_as: str = ""  # optional X-Scio-Actas email, for global tokens
 
     @property
     def configured(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.base_url and self.api_token)
 
 
 @dataclass
@@ -59,18 +61,18 @@ class Settings:
     web_dir: str = "../web/dist"
     session_hours: int = 8
     max_upload_mb: int = 25
-    default_ai: str = "claude"
+    default_ai: str = "glean"
     entra: Entra = field(default_factory=Entra)
     confluence: Confluence = field(default_factory=Confluence)
-    claude: Claude = field(default_factory=Claude)
+    glean: Glean = field(default_factory=Glean)
     azure: AzureOpenAI = field(default_factory=AzureOpenAI)
 
     def ai_providers(self) -> list[dict]:
         out = []
         if self.demo:
             out.append({"key": "demo", "name": "Demo AI (sample matching, no data leaves the server)"})
-        if self.claude.configured:
-            out.append({"key": "claude", "name": f"Claude ({self.claude.model})"})
+        if self.glean.configured:
+            out.append({"key": "glean", "name": "Glean (search and answers)"})
         if self.azure.configured:
             out.append({"key": "azure", "name": f"Azure OpenAI ({self.azure.deployment})"})
         return out
@@ -86,10 +88,10 @@ def load() -> Settings:
         web_dir=e("WEB_DIR") or "../web/dist",
         session_hours=int(e("SESSION_HOURS") or 8),
         max_upload_mb=int(e("MAX_UPLOAD_MB") or 25),
-        default_ai=(e("DEFAULT_AI_PROVIDER") or "claude").lower(),
+        default_ai=(e("DEFAULT_AI_PROVIDER") or "glean").lower(),
         entra=Entra(e("ENTRA_TENANT_ID") or "", e("ENTRA_CLIENT_ID") or "", e("ENTRA_CLIENT_SECRET") or "", e("ENTRA_ALLOWED_GROUP_ID") or ""),
         confluence=Confluence(e("CONFLUENCE_BASE_URL") or "", e("CONFLUENCE_EMAIL") or "", e("CONFLUENCE_API_TOKEN") or "", e("CONFLUENCE_PAT") or ""),
-        claude=Claude(e("ANTHROPIC_API_KEY") or "", e("ANTHROPIC_MODEL") or "claude-sonnet-5-5"),
+        glean=Glean((e("GLEAN_BASE_URL") or "").rstrip("/"), e("GLEAN_API_TOKEN") or "", e("GLEAN_AUTH_TYPE") or "", e("GLEAN_ACT_AS") or ""),
         azure=AzureOpenAI(e("AZURE_OPENAI_ENDPOINT", "").rstrip("/"), e("AZURE_OPENAI_API_KEY") or "", e("AZURE_OPENAI_DEPLOYMENT") or "", e("AZURE_OPENAI_API_VERSION") or "2024-10-21"),
     )
     return s

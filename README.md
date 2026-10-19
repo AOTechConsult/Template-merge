@@ -19,7 +19,7 @@ asks for that the document doesn't have is flagged in **bold red on yellow** wit
    "3. Who This Applies To" fills "2. Scope" and "Passwords" fills "Password Requirements". A
    sub-section with no match of its own travels with its parent section.
 4. **AI fallback (optional).** Only the pieces headings could not place, plus any unfilled fields, are
-   sent to Claude or Azure OpenAI. Anything the AI places carries a "Please confirm" comment in the
+   sent to Glean or Azure OpenAI. Anything the AI places carries a "Please confirm" comment in the
    Word document and a blue marker in the on-screen preview.
 5. **Nothing is dropped.** Content that still fits nowhere goes into a final "Content not in the
    template" section for a person to move or delete.
@@ -71,7 +71,9 @@ Open port 8443 to your admin network at your firewall. It is safe to re-run the 
 
 ### AI providers (optional, either or both)
 
-- **Claude:** an Anthropic API key. `ANTHROPIC_MODEL` defaults to `claude-sonnet-5-5`.
+- **Glean:** `GLEAN_BASE_URL` (`https://<company>-be.glean.com`) and `GLEAN_API_TOKEN` (a Client API token
+  with chat access). Optional `GLEAN_AUTH_TYPE` (e.g. `OAUTH`) and `GLEAN_ACT_AS` (email, for global tokens).
+  Uses Glean's Chat API, so answers come from Glean's search and assistant.
 - **Azure OpenAI:** the resource endpoint (`https://<name>.openai.azure.com`), a chat model
   deployment name, and an API key. Requests stay within your Azure tenant.
 
@@ -111,10 +113,10 @@ Paste page links one per line. Links with a page ID (`/pages/12345/...` or `?pag
 
 Tested: the merge engine on the bundled Word, PDF and Confluence samples (`server/tests`), the Word
 output against the Word schema (including comments), the web app end to end in demo mode, and the
-installer's install and go-live paths with stand-ins for Docker and the network. The Claude and Azure
+installer's install and go-live paths with stand-ins for Docker and the network. The Glean and Azure
 OpenAI request and reply handling is tested against simulated replies.
 
-**Not yet tested against live services:** Entra sign-in, the real Claude and Azure OpenAI APIs, and a
+**Not yet tested against live services:** Entra sign-in, the real Glean and Azure OpenAI APIs, and a
 real Confluence site. Try each with one document first.
 
 ## Development
@@ -131,6 +133,6 @@ server/app/readers/   Word, PDF and Confluence readers -> blocks
 server/app/template.py  finds sections, instructions, fixed wording and fields in a template
 server/app/matcher.py   heading matching, sub-section alignment, AI fallback, field values
 server/app/writer.py    writes the output into a copy of the template, flags and comments
-server/app/ai.py        Claude and Azure OpenAI clients
+server/app/ai.py        Glean and Azure OpenAI clients
 web/src               React interface
 ```

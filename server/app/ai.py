@@ -1,4 +1,4 @@
-"""AI fallback: Claude (Anthropic API) or Azure OpenAI. Used only for content that heading matching could not place."""
+"""AI fallback: Glean (search and answers through Glean's Chat API) or Azure OpenAI. Used only for content that heading matching could not place."""
 
 from __future__ import annotations
 
@@ -46,17 +46,41 @@ def _extract_json(text: str) -> dict:
     raise AIError("The AI reply was not valid JSON.")
 
 
-def _claude(prompt: str) -> str:
-    c = settings.claude
+def glean_headers() -> dict:
+    g = settings.glean
+    h = {"Authorization": f"Bearer {g.api_token}", "content-type": "application/json"}
+    if g.auth_type:
+        h["X-Glean-Auth-Type"] = g.auth_type  # e.g. OAUTH, when the token is an OAuth access token
+    if g.act_as:
+        h["X-Scio-Actas"] = g.act_as  # email to act as, when the token is a global token
+    return h
+
+
+def glean_chat_body(text: str) -> dict:
+    return {"messages": [{"author": "USER", "messageType": "CONTENT", "fragments": [{"text": text}]}], "stream": False}
+
+
+def _glean_text(payload: dict) -> str:
+    """The answer text: fragments of the assistant's CONTENT messages (search-progress UPDATE messages are skipped)."""
+    parts = []
+    for m in payload.get("messages", []):
+        if m.get("author") == "USER" or m.get("messageType") == "UPDATE":
+            continue
+        parts.extend(f.get("text", "") for f in m.get("fragments", []) if f.get("text"))
+    return "".join(parts)
+
+
+def _glean(prompt: str) -> str:
+    g = settings.glean
     r = httpx.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": c.api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        json={"model": c.model, "max_tokens": 8000, "system": SYSTEM, "messages": [{"role": "user", "content": prompt}]},
+        f"{g.base_url}/rest/api/v1/chat",
+        headers=glean_headers(),
+        json=glean_chat_body(SYSTEM + "\n\n" + prompt),
         timeout=180,
     )
     if r.status_code >= 400:
-        raise AIError(f"Claude API error {r.status_code}: {r.text[:300]}")
-    return "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
+        raise AIError(f"Glean API error {r.status_code}: {r.text[:300]}")
+    return _glean_text(r.json())
 
 
 def _azure(prompt: str) -> str:
@@ -80,10 +104,10 @@ def _azure(prompt: str) -> str:
 class AIClient:
     def __init__(self, provider: str):
         self.provider = provider
-        if provider == "claude":
-            if not settings.claude.configured:
-                raise AIError("Claude is not set up on the server (ANTHROPIC_API_KEY).")
-            self.usage = AIUsage("Claude", settings.claude.model)
+        if provider == "glean":
+            if not settings.glean.configured:
+                raise AIError("Glean is not set up on the server (GLEAN_BASE_URL, GLEAN_API_TOKEN).")
+            self.usage = AIUsage("Glean", "Glean Chat")
         elif provider == "azure":
             if not settings.azure.configured:
                 raise AIError("Azure OpenAI is not set up on the server (AZURE_OPENAI_*).")
@@ -98,7 +122,7 @@ class AIClient:
         self.usage.chars_sent += len(prompt)
         if self.provider == "demo":
             return demo_answer()
-        text = _claude(prompt) if self.provider == "claude" else _azure(prompt)
+        text = _glean(prompt) if self.provider == "glean" else _azure(prompt)
         return _extract_json(text)
 
     # ---------- tasks ----------

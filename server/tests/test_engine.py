@@ -79,15 +79,16 @@ def _fake_post(provider):
 
     def post(url, **kw):
         calls.append((url, kw))
-        prompt = kw["json"]["messages"][-1]["content"]
+        last = kw["json"]["messages"][-1]
+        prompt = last["fragments"][0]["text"] if provider == "glean" else last["content"]
         if "SOURCE PIECES" in prompt:
             ids = [ln.split(":")[0].strip("- ").strip() for ln in prompt.splitlines() if ln.startswith("- u")]
             body = {"assignments": [{"unit": i, "section": key["1. Purpose"] if n == 0 else None, "confidence": "high", "reason": "describes intent"} for n, i in enumerate(ids)]}
         else:
             body = {"fields": [{"field": INFO.fields[4].key, "value": "CISO", "quote": "approved by the CISO"}]}
         text = "```json\n" + json.dumps(body) + "\n```"
-        if provider == "claude":
-            payload = {"content": [{"type": "text", "text": text}]}
+        if provider == "glean":
+            payload = {"messages": [{"author": "GLEAN_AI", "messageType": "CONTENT", "fragments": [{"text": text}]}]}
         else:
             payload = {"choices": [{"message": {"content": json.dumps(body)}}]}
         return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
@@ -96,8 +97,8 @@ def _fake_post(provider):
 
 
 def test_ai_providers():
-    for provider in ("claude", "azure"):
-        settings.claude.api_key = "test-key"
+    for provider in ("glean", "azure"):
+        settings.glean.base_url, settings.glean.api_token = "https://example-be.glean.com", "test-key"
         settings.azure.endpoint, settings.azure.api_key, settings.azure.deployment = "https://example.openai.azure.com", "k", "gpt"
         post, calls = _fake_post(provider)
         original = ai.httpx.post
@@ -111,7 +112,7 @@ def test_ai_providers():
         assert r.report["ai"]["calls"] == 2 and r.report["missing_fields"] == []
         assert "Contacts" in [e["source_title"] for e in r.preview["extra"]]
         url = calls[0][0]
-        assert ("anthropic.com" in url) if provider == "claude" else ("/openai/deployments/gpt/chat/completions" in url)
+        assert ("/rest/api/v1/chat" in url) if provider == "glean" else ("/openai/deployments/gpt/chat/completions" in url)
         assert "CISO" in text_of(r.output)
 
 
