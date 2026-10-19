@@ -53,7 +53,6 @@ def glean_headers() -> dict:
         h["X-Glean-Auth-Type"] = g.auth_type  # e.g. OAUTH, when the token is an OAuth access token
     if g.act_as:
         h["X-Glean-ActAs"] = g.act_as  # email to act as, when the token is a global token
-        h["X-Scio-Actas"] = g.act_as  # older name for the same header
     return h
 
 
