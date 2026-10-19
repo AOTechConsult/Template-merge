@@ -297,6 +297,7 @@ do_live() {
   ask GLEAN_BASE_URL "Glean base URL, e.g. https://company-be.glean.com" "${gl_default:-none}" 'none|https://[A-Za-z0-9.-]+/?'
   if [[ $GLEAN_BASE_URL != none ]]; then
     ask_secret GLEAN_API_TOKEN "Glean API token (chat scope)"
+    ask GLEAN_ACT_AS "Glean user email to act as (needed for global tokens; 'none' to skip)" "$(get_env GLEAN_ACT_AS)" 'none|[^@ ]+@[^@ ]+'
   fi
   local az_default
   az_default=$(get_env AZURE_OPENAI_ENDPOINT)
@@ -332,7 +333,7 @@ do_live() {
   else warn "Could not verify the Entra client secret; sign-in will show the real result."; fi
   if [[ $GLEAN_BASE_URL != none ]]; then
     code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X POST "${GLEAN_BASE_URL%/}/rest/api/v1/chat" \
-      -H "Authorization: Bearer $GLEAN_API_TOKEN" -H "content-type: application/json" \
+      -H "Authorization: Bearer $GLEAN_API_TOKEN" ${GLEAN_ACT_AS:+-H "X-Glean-ActAs: $GLEAN_ACT_AS"} -H "content-type: application/json" \
       -d '{"messages":[{"author":"USER","messageType":"CONTENT","fragments":[{"text":"ping"}]}],"stream":false}' || true)
     if [[ $code == 200 ]]; then info "Glean answered."; else warn "Glean did not answer as expected (HTTP $code). Check the base URL and token."; problems=1; fi
   fi
@@ -365,6 +366,7 @@ do_live() {
     set_env GLEAN_BASE_URL ""; set_env GLEAN_API_TOKEN ""
   else
     set_env GLEAN_BASE_URL "${GLEAN_BASE_URL%/}"; set_env GLEAN_API_TOKEN "$(quote "$GLEAN_API_TOKEN")"
+    [[ ${GLEAN_ACT_AS:-none} == none ]] && set_env GLEAN_ACT_AS "" || set_env GLEAN_ACT_AS "$GLEAN_ACT_AS"
   fi
   if [[ $AZURE_OPENAI_ENDPOINT == none ]]; then
     set_env AZURE_OPENAI_ENDPOINT ""; set_env AZURE_OPENAI_API_KEY ""; set_env AZURE_OPENAI_DEPLOYMENT ""

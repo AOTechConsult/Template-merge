@@ -72,7 +72,7 @@ Open port 8443 to your admin network at your firewall. It is safe to re-run the 
 ### AI providers (optional, either or both)
 
 - **Glean:** `GLEAN_BASE_URL` (`https://<company>-be.glean.com`) and `GLEAN_API_TOKEN` (a Client API token
-  with chat access). Optional `GLEAN_AUTH_TYPE` (e.g. `OAUTH`) and `GLEAN_ACT_AS` (email, for global tokens).
+  with chat access). Optional `GLEAN_AUTH_TYPE` (e.g. `OAUTH`) and `GLEAN_ACT_AS` (email, required for global tokens).
   Uses Glean's Chat API, so answers come from Glean's search and assistant.
 - **Azure OpenAI:** the resource endpoint (`https://<name>.openai.azure.com`), a chat model
   deployment name, and an API key. Requests stay within your Azure tenant.
